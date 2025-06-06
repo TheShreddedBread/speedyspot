@@ -4,78 +4,132 @@ import tifffile
 import numpy as np
 import numpy as np
 import cv2
+import handleImage
+import math
 
-def refine_alpha_edge(alpha_channel: np.ndarray, erosion_pixels: int = 2, mode: int = 1) -> np.ndarray:
-    """
-
-    Args:
-        alpha_channel (np.ndarray): grayscale-alpha-channel (uint8, value 0–255).
-        erosion_pixels (int): pixles to erode the alpha channel.
-    
-    Returns:
-        np.ndarray: improved alpha-kanal.
-    """
-    if erosion_pixels > 0:
+def contract_alpha_smooth(alpha_channel: np.ndarray, pixels: int, blur_sigma: float = 1.0, mode: int = 1) -> np.ndarray:
+    # Create a mask from the alpha channel and apply Gaussian blur
+    if pixels > 0 and mode in [1]:
         # 1. In with border
         kernel = np.ones((3, 3), np.uint8)
-        eroded = cv2.erode(alpha_channel, kernel, iterations=erosion_pixels)
+        eroded = cv2.erode(alpha_channel, kernel, iterations=pixels)
 
-        # 2. smooting
-        if mode == 2:
-            blurred = cv2.bilateralFilter(eroded, d=1, sigmaColor=25, sigmaSpace=25)
-        else:
-            blurred = cv2.GaussianBlur(eroded, (1, 1), sigmaX=1.0)
+        # Smooth the edges using a bilateral filter
+        blurred = cv2.bilateralFilter(eroded, d=1, sigmaColor=25, sigmaSpace=25) # Use bilateral filter for smoother edges
 
-    # 3. Make sure it's in the range [0, 255]
-        smoothed_alpha = np.clip(eroded, 0, 255).astype(np.uint8)
-    else:
-        smoothed_alpha = alpha_channel
-    return smoothed_alpha
+        return np.clip(blurred, 0, 255).astype(np.uint8)
+    
+    elif mode == 2:
+        # Create a binary mask from the alpha channel
+        binary = (alpha_channel > 0).astype(np.uint8)
 
-def fixWhiteOutsideSpot(c,m,y,k,a,spotLayer,usedMargin):
-    # Add spot back if it is white
+        # Apply Gaussian blur to the binary mask
+        binary = cv2.GaussianBlur(binary, (0, 0), sigmaX=blur_sigma)
+
+        # Calculate the distance transform
+        dist = cv2.distanceTransform(binary, cv2.DIST_L2, 3)
+
+        # Create a mask based on the distance
+        mask = (dist > pixels).astype(np.uint8)
+
+        # Create a contracted alpha channel based on the mask
+        contracted = alpha_channel.copy()
+        contracted[mask == 0] = 0
+
+        # Apply Gaussian blur to the contracted alpha channel
+        if blur_sigma > 0:
+            contracted = cv2.GaussianBlur(contracted, (0, 0), sigmaX=blur_sigma)
+
+        # Clip the values to [0, 255] and convert to uint8
+        contracted = np.clip(contracted, 0, 255).astype(np.uint8)
+        alpha_channel = contracted
+
+    elif mode == 3: # Similar to mode 2, but with a distance transform and no blur
+
+        # Normalize the alpha channel to [0, 1]
+        alpha_norm = alpha_channel.astype(np.float32) / 255.0
+
+        # Create a binary mask from the normalized alpha channel
+        binary_mask = (alpha_norm > 0.01).astype(np.uint8)
+
+        # Calculate the distance transform
+        dist = cv2.distanceTransform(binary_mask, distanceType=cv2.DIST_L2, maskSize=5)
+
+        # Create a contracted mask based on the distance
+        contracted_mask = (dist > pixels).astype(np.float32)
+
+        # Multiply the alpha channel by the contracted mask
+        contracted_alpha = alpha_norm * contracted_mask
+
+        # Scale back to [0, 255] and convert to uint8
+        alpha_channel = np.clip(contracted_alpha * 255, 0, 255).astype(np.uint8)
+        
+    return alpha_channel
+
+def get_resolution_tag(dpi: int=300) -> tuple:
+    resolution = (dpi, dpi)
+    resolution_unit = 'inch'
+    return resolution, resolution_unit
+
+# Get pixels in a circle around a center point (cx, cy) with radius R
+def get_pixels_in_circle(array, cx, cy, R) -> np.ndarray:
+    h, w = array.shape[:2]
+
+    # Ensure the center is within the bounds of the array
+    x_min = max(cx - R, 0)
+    x_max = min(cx + R + 1, w)
+    y_min = max(cy - R, 0)
+    y_max = min(cy + R + 1, h)
+
+    # Create a grid of coordinates within the bounding box
+    Y, X = np.ogrid[y_min:y_max, x_min:x_max]
+    mask = (X - cx)**2 + (Y - cy)**2 <= R**2
+
+    return array[y_min:y_max, x_min:x_max][mask]
+
+# Function to "fix" diffrent things in the spot layer
+def fixSpotSmart(c: np.ndarray, m: np.ndarray, y: np.ndarray, k: np.ndarray, a: np.ndarray, spotLayer: np.ndarray, usedMargin: int, options: tuple) -> np.ndarray:
     for i in range(a.shape[0]):
         for j in range(a.shape[1]):
             if spotLayer[i][j] == 255:
                 continue
-            # Check if pixel is white
-            if (c[i,j]==m[i,j]==y[i,j]==k[i,j]==0 and a[i,j]!=0):
-                spotLayer[i][j] = a[i][j]
-            # Just make sure that there are no "unspotted" areas
-            elif (a[i][j] == 0):
-                try:
-                    region = a[i - usedMargin:i + usedMargin + 1, j - usedMargin:j + usedMargin + 1]
-                    if np.all(region == 255):
-                        spotLayer[i, j] = a[i, j]
-                except:
-                    continue   
+            
+            if options[0]: # If copy white is enabled
+                # Check if pixel is white
+                if (c[i, j] == 0 and m[i, j] == 0 and y[i, j] == 0 and k[i, j] == 0 and a[i, j] != 0):
+                    spotLayer[i][j] = a[i][j] # If the pixel is white, set it to the alpha value
+                    continue
+    
+    if options[1]: # If fill gaps is enabled
+        # Use morphological operations to fill gaps in the spot layer
+        hole_size = math.floor(usedMargin/2)
+        kernel = np.ones((hole_size * 2 + 1, hole_size * 2 + 1), np.uint8)
+        spotLayer = cv2.morphologyEx(spotLayer, cv2.MORPH_CLOSE, kernel)            
 
     return spotLayer
 
-def generateSpotImage(inputName, outputName, margin, marginMode=2, smartSpot = False):
-    imgSrc = tifffile.imread(inputName)  # shape (H,W,4)
-    # --- 4. Stack channels: C, M, Y, K, Alpha, Spot ---
-    c, m, y, k = imgSrc[..., 0], imgSrc[..., 1], imgSrc[..., 2], imgSrc[..., 3]
-    alpha_channel = imgSrc[..., 4].astype(np.uint8)
-    spot_channel = np.copy(imgSrc[..., 4])  # Copy alpha from cmyk to spot
-    spot_sized = refine_alpha_edge(spot_channel, margin, mode=marginMode)
+def generateSpotImage(inputName: str, outputName: str, margin: int, marginMode: int=2, smartSpot: tuple = [False, False]):
+    c,m,y,k,alpha_channel = handleImage.splitImageToCmyk(inputName) # Split the image into CMYK channels and alpha channel
+    spot_channel = np.copy(alpha_channel)  # Copy alpha channel to spot channel
+    spot_sized = contract_alpha_smooth(spot_channel, margin, mode=marginMode) # Contract the alpha channel
 
-    if smartSpot:
-        spot_sized = fixWhiteOutsideSpot(c, m, y, k, alpha_channel, spot_sized, margin)
+    if True in smartSpot:
+        spot_sized = fixSpotSmart(c, m, y, k, alpha_channel, spot_sized, margin, smartSpot) # Function to fix the spot channel "smartly"
 
+    # Invert the spot channel
     for i in spot_sized:
         for j in range(len(i)):
             i[j] = 255-i[j]
 
-    spot_fixed = spot_sized.astype(np.uint8)
-    data = np.stack([c, m, y, k, alpha_channel, spot_fixed], axis=-1)
+    spot_fixed = spot_sized.astype(np.uint8) # Make sure it is uint8
+    data = np.stack([spot_fixed, spot_fixed, y, k, alpha_channel, spot_fixed], axis=-1) # Add the layers together in the correct order
 
-    # --- 5. Photoshop Image Resources ---
-    channel_names = ["Alpha", "Spot _1"]
+    channel_names = ["Alpha", "Spot _1"] # Add channel names for the alpha and spot channels. The space in "Spot _1" is to match the Photoshop standard.
+    
+    # Create a list of channel names, including the spot channel
     ir = TiffImageResources(
         psdformat=True,
         blocks=[
-            # Channel names
             PsdPascalStringsBlock(
                 resourceid=PsdResourceId.ALPHA_NAMES_PASCAL,
                 values=channel_names
@@ -85,7 +139,8 @@ def generateSpotImage(inputName, outputName, margin, marginMode=2, smartSpot = F
 
     ps_tag = (34377, 'B', len(ir.tobytes()), ir.tobytes())  # Photoshop tag
 
-    # --- 6. Load ICC-profil ---
+    # Load ICC profile
+    # This is optional, if you don't have an ICC profile, it will use the default one.
     icc_tag = None
     icc_path = "data/CoatedFOGRA39.icc"
     try:
@@ -95,7 +150,7 @@ def generateSpotImage(inputName, outputName, margin, marginMode=2, smartSpot = F
     except FileNotFoundError:
         print("No ICC profile found, using default.")
 
-    # --- 7. Add XMP-metadata ---
+    # Add XMP metadata
     xmp_xml = """<?xpacket begin='' id='W5M0MpCehiHzreSzNTczkc9d'?>
     <x:xmpmeta xmlns:x='adobe:ns:meta/'>
     <rdf:RDF xmlns:rdf='http://www.w3.org/1999/02/22-rdf-syntax-ns#'>
@@ -110,7 +165,7 @@ def generateSpotImage(inputName, outputName, margin, marginMode=2, smartSpot = F
 
     xmp_tag = (700, 'B', len(xmp_xml.encode('utf-8')), xmp_xml.encode('utf-8'))
 
-    # --- 8. XML-beskrivning ---
+    # Add XML-description
     xml_description = """
     <Metadata>
         <Name>CMYK Spot</Name>
@@ -125,15 +180,18 @@ def generateSpotImage(inputName, outputName, margin, marginMode=2, smartSpot = F
     </Metadata>
     """.strip()
 
-    # --- 9. Extra tags ---
+    # Make a the tags into a tuple
     extratags = [ps_tag, xmp_tag]
     if icc_tag:
         extratags.append(icc_tag)
 
-    # --- 10. extrasamples: 2 = unassociated alpha, 0 = spot ---
+    # Extrasamples: 2 = unassociated alpha, 0 = spot
     extrasamples = [2, 0]
 
-    # --- 11. Write to a tif ---
+    # Get resolution tag
+    resolution, resolution_unit = get_resolution_tag(dpi=300)
+
+    # Write the TIFF file with the separated channels
     tifffile.imwrite(
         outputName,
         data,
@@ -141,7 +199,9 @@ def generateSpotImage(inputName, outputName, margin, marginMode=2, smartSpot = F
         planarconfig='contig',
         extrasamples=extrasamples,
         description=xml_description,
-        extratags=extratags
+        extratags=extratags,
+        resolution=resolution,
+        resolutionunit=resolution_unit
     )
 
 def getOutputName(inputName):
