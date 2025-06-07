@@ -7,7 +7,21 @@ import cv2
 import handleImage
 import math
 
-def contract_alpha_smooth(alpha_channel: np.ndarray, pixels: int, blur_sigma: float = 1.0, mode: int = 1) -> np.ndarray:
+previewImage = None  # Global variable to hold the preview image
+
+def getPreviwColors():
+    colors = {
+        "Cyan": [0, 255, 255],
+        "Pink": [255, 0, 255],
+        "Yellow": [255, 255, 0],
+        "Black": [0, 0, 0],
+        "Green": [0, 255, 0],
+        "Red": [255, 0, 0],
+        "Blue": [0, 0, 255],
+    }
+    return colors
+
+def contractAlphaSmooth(alpha_channel: np.ndarray, pixels: int, blur_sigma: float = 1.0, mode: int = 1) -> np.ndarray:
     # Create a mask from the alpha channel and apply Gaussian blur
     if pixels > 0 and mode in [1]:
         # 1. In with border
@@ -66,26 +80,10 @@ def contract_alpha_smooth(alpha_channel: np.ndarray, pixels: int, blur_sigma: fl
         
     return alpha_channel
 
-def get_resolution_tag(dpi: int=300) -> tuple:
+def getResolutionTag(dpi: int=300) -> tuple:
     resolution = (dpi, dpi)
     resolution_unit = 'inch'
     return resolution, resolution_unit
-
-# Get pixels in a circle around a center point (cx, cy) with radius R
-def get_pixels_in_circle(array, cx, cy, R) -> np.ndarray:
-    h, w = array.shape[:2]
-
-    # Ensure the center is within the bounds of the array
-    x_min = max(cx - R, 0)
-    x_max = min(cx + R + 1, w)
-    y_min = max(cy - R, 0)
-    y_max = min(cy + R + 1, h)
-
-    # Create a grid of coordinates within the bounding box
-    Y, X = np.ogrid[y_min:y_max, x_min:x_max]
-    mask = (X - cx)**2 + (Y - cy)**2 <= R**2
-
-    return array[y_min:y_max, x_min:x_max][mask]
 
 # Function to "fix" diffrent things in the spot layer
 def fixSpotSmart(c: np.ndarray, m: np.ndarray, y: np.ndarray, k: np.ndarray, a: np.ndarray, spotLayer: np.ndarray, usedMargin: int, options: tuple) -> np.ndarray:
@@ -108,10 +106,24 @@ def fixSpotSmart(c: np.ndarray, m: np.ndarray, y: np.ndarray, k: np.ndarray, a: 
 
     return spotLayer
 
-def generateSpotImage(inputName: str, outputName: str, margin: int, marginMode: int=2, smartSpot: tuple = [False, False]):
+def generateSpotPreview(c,m,y,k,alpha_channel,spot_channel,spotColor=(0, 255, 255)):
+    r,g,b = handleImage.cmyk_to_rgb_array(c, m, y, k)  # Convert CMYK to RGB
+    # Create a preview image with the spot channel
+
+    # Create mask for the spot channel and update RGB channels
+    mask = (spot_channel == 0)
+    r[mask] = spotColor[0] # Red
+    g[mask] = spotColor[1] # Green
+    b[mask] = spotColor[2] # Blue
+
+    rgba_image = np.stack([r, g, b, alpha_channel], axis=-1)  # Stack RGB channels
+    image = Image.fromarray(rgba_image.astype('uint8'), 'RGBA')
+    image.save("data/spot_preview.png")  # Save the preview image
+
+def generateSpotImage(inputName: str, outputName: str, margin: int, marginMode: int=2, smartSpot: tuple = [False, False], previewColor: str = "Cyan"):
     c,m,y,k,alpha_channel = handleImage.splitImageToCmyk(inputName) # Split the image into CMYK channels and alpha channel
     spot_channel = np.copy(alpha_channel)  # Copy alpha channel to spot channel
-    spot_sized = contract_alpha_smooth(spot_channel, margin, mode=marginMode) # Contract the alpha channel
+    spot_sized = contractAlphaSmooth(spot_channel, margin, mode=marginMode) # Contract the alpha channel
 
     if True in smartSpot:
         spot_sized = fixSpotSmart(c, m, y, k, alpha_channel, spot_sized, margin, smartSpot) # Function to fix the spot channel "smartly"
@@ -189,8 +201,8 @@ def generateSpotImage(inputName: str, outputName: str, margin: int, marginMode: 
     extrasamples = [2, 0]
 
     # Get resolution tag
-    resolution, resolution_unit = get_resolution_tag(dpi=300)
-
+    resolution, resolution_unit = getResolutionTag(dpi=300)
+    generateSpotPreview(c, m, y, k, alpha_channel, spot_fixed, getPreviwColors().get(previewColor,(255,255,0)))  # Generate a preview image of the spot layer
     # Write the TIFF file with the separated channels
     tifffile.imwrite(
         outputName,
@@ -203,6 +215,19 @@ def generateSpotImage(inputName: str, outputName: str, margin: int, marginMode: 
         resolution=resolution,
         resolutionunit=resolution_unit
     )
+
+def showPreview():
+    global previewImage
+    try:
+        previewImage.close()  # Try to close the previous image opbject if it exists
+    except:
+        pass
+
+    try:
+        previewImage = Image.open("data/spot_preview.png")  # Load the preview image
+        previewImage.show()
+    except FileNotFoundError:
+        print("Preview image not found")
 
 def getOutputName(inputName):
     base_name = inputName.rsplit(".", 1)[0]
