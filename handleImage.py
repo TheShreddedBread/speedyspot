@@ -3,10 +3,14 @@ import numpy as np
 import cv2
 import tifffile
 
-def rgb_to_cmyk_array(r, g, b):
+def get_scales() -> tuple:
     # Constants for scaling, these can be adjusted based on the desired output range
     rgb_scale = 255.0
     cmyk_scale = 255.0
+    return rgb_scale, cmyk_scale
+
+def rgb_to_cmyk_array(r: np.ndarray, g: np.ndarray, b: np.ndarray) -> tuple:
+    rgb_scale, cmyk_scale = get_scales()
 
     # Normalize RGB
     r = np.array(r).astype(np.float32) / rgb_scale
@@ -38,6 +42,24 @@ def rgb_to_cmyk_array(r, g, b):
         (k * cmyk_scale).astype(np.uint8)
     )
 
+def cmyk_to_rgb_array(c: np.ndarray, m: np.ndarray, y: np.ndarray, k: np.ndarray) -> tuple:
+    # Convert CMYK (0-255) to RGB (0-255)
+    rgb_scale, cmyk_scale = get_scales()
+    c = np.array(c).astype(np.float32) / cmyk_scale
+    m = np.array(m).astype(np.float32) / cmyk_scale
+    y = np.array(y).astype(np.float32) / cmyk_scale
+    k = np.array(k).astype(np.float32) / cmyk_scale
+
+    r = (1.0 - np.minimum(1.0, c * (1.0 - k) + k))
+    g = (1.0 - np.minimum(1.0, m * (1.0 - k) + k))
+    b = (1.0 - np.minimum(1.0, y * (1.0 - k) + k))
+
+    return (
+        (r * rgb_scale).astype(np.uint8),
+        (g * rgb_scale).astype(np.uint8),
+        (b * rgb_scale).astype(np.uint8)
+    )
+
 def getType(src: str) -> list:
     # Determine the type of image based on its file extension and properties
     # Is it a tiff, png or eps? And is it RGB or CMYK?
@@ -66,7 +88,7 @@ def getType(src: str) -> list:
         
         return imgInfo
 
-def splitImageToCmyk(src):
+def splitImageToCmyk(src: str) -> tuple:
     imgInfo = getType(src) # Get image type and color space (RGB or CMYK)
     c,m,y,k, alpha_channel = 0,0,0,0,0 # Initialize variables
     if imgInfo[1]== "tiff":
