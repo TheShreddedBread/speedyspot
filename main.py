@@ -40,7 +40,6 @@ def processImage():
         marg = int(margin.get())
     except:
         marg = 0  # default value if conversion fails
-
     program.generateSpotImage(targetFile, program.getOutputName(targetFile), margin=marg, marginMode=int(marginmode.get()), smartSpot=[copywhite.get(), fillgaps.get()], previewColor=previewColor.get())  # Start the conversion process
     chosenFile.configure(text="No file selected")
     targetFile = None
@@ -106,10 +105,14 @@ def loadSettings():
 
             if settings.get("copywhite", True):
                 copywhite.select()
+            elif settings.get("copywhite", 1):
+                copywhite.select()
             else:
                 copywhite.deselect()
 
             if settings.get("fillgaps", True):
+                fillgaps.select()
+            elif settings.get("fillgaps", 1):
                 fillgaps.select()
             else:
                 fillgaps.deselect()
@@ -166,7 +169,8 @@ customtkinter.CTkOptionMenu(app, values=list(program.getPreviwColors().keys()), 
 
 customtkinter.set_default_color_theme("dark-blue")
 
-loadSettings()
+loadSettings() # Load settings from the file if it exists
+program.cacheFunctions()  # Cache the functions for later use
 
 app.update_idletasks()
 app.mainloop()

@@ -62,12 +62,12 @@ def cmyk_to_rgb_array(c: np.ndarray, m: np.ndarray, y: np.ndarray, k: np.ndarray
 
 def getType(src: str) -> list:
     # Determine the type of image based on its file extension and properties
-    # Is it a tiff, png or eps? And is it RGB or CMYK?
+    # Is it a tiff or png? And is it RGB or CMYK?
     ext = src.split(".")[-1]
     if ext == "tif" or ext == "tiff":
         with tifffile.TiffFile(src) as tif:
             photometric = tif.pages[0].photometric
-
+            # Determine the color space of the TIFF image
             imgInfo = ["Unknown", "tiff"]
             if photometric == 2:
                 imgInfo[0] = "RGB"
@@ -79,7 +79,7 @@ def getType(src: str) -> list:
         img = PIL.Image.open(src)
         mode = img.mode
         img.close()
-
+        # Determine the color space of the PNG image
         imgInfo = ["Unknown", "png"]
         if mode == "RGBA":
             imgInfo[0] = "RGB"
@@ -89,9 +89,12 @@ def getType(src: str) -> list:
         return imgInfo
 
 def splitImageToCmyk(src: str) -> tuple:
+    # Create a CMYK image from an RGB or CMYK source image, using information from the function getType
+
     imgInfo = getType(src) # Get image type and color space (RGB or CMYK)
     c,m,y,k, alpha_channel = 0,0,0,0,0 # Initialize variables
     if imgInfo[1]== "tiff":
+        # Read the TIFF image using tifffile
         imgSrc = tifffile.imread(src)  # shape (H,W,4)
         if imgInfo[0] == "RGB":
             c,m,y,k = rgb_to_cmyk_array(imgSrc[..., 0], imgSrc[..., 1], imgSrc[..., 2])
@@ -103,7 +106,9 @@ def splitImageToCmyk(src: str) -> tuple:
             raise ValueError("Unknown image type")
         
     elif imgInfo[1] == "png":
+        # Read the PNG image using PIL
         imgSrc = PIL.Image.open(src)
+        # Check if the image is RGB or CMYK and convert if needed
         if imgInfo[0] == "RGB":
             c, m, y, k = rgb_to_cmyk_array(imgSrc.getchannel("R"), imgSrc.getchannel("G"), imgSrc.getchannel("B"))
             alpha_channel = np.array(imgSrc.getchannel("A"))
