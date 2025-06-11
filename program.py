@@ -150,7 +150,7 @@ def generateSpotImage(inputName: str, outputName: str, margin: int, marginMode: 
     # Invert the spot channel
     spot_sized = invertSpot(spot_sized)
     spot_fixed = spot_sized.astype(np.uint8) # Make sure it is uint8
-    data = np.stack([spot_fixed, spot_fixed, y, k, alpha_channel, spot_fixed], axis=-1) # Add the layers together in the correct order
+    data = np.stack([c, m, y, k, alpha_channel, spot_fixed], axis=-1) # Add the layers together in the correct order
 
     channel_names = ["Alpha", "Spot _1"] # Add channel names for the alpha and spot channels. The space in "Spot _1" is to match the Photoshop standard.
     
