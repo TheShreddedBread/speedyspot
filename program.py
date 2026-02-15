@@ -4,24 +4,13 @@ import tifffile
 import numpy as np
 import numpy as np
 import cv2
+import config
 import handleImage
 import math
 from numba import jit
 from time import perf_counter_ns
 
 previewImage = None  # Global variable to hold the preview image
-
-def getPreviwColors():
-    colors = {
-        "Cyan": [0, 255, 255],
-        "Pink": [255, 0, 255],
-        "Yellow": [255, 255, 0],
-        "Black": [0, 0, 0],
-        "Green": [0, 255, 0],
-        "Red": [255, 0, 0],
-        "Blue": [0, 0, 255],
-    }
-    return colors
 
 @jit(nopython=False, forceobj=True)
 def contractAlphaSmooth(alpha_channel: np.ndarray, pixels: int, blur_sigma: float = 1.0, mode: int = 1) -> np.ndarray:
@@ -217,7 +206,7 @@ def generateSpotImage(inputName: str, outputName: str, margin: int, marginMode: 
     extrasamples = [2, 0]
     # Get resolution tag
     resolution, resolution_unit = getResolutionTag(dpi=300)
-    generateSpotPreview(c, m, y, k, alpha_channel, spot_fixed, getPreviwColors().get(previewColor,(255,255,0)))  # Generate a preview image of the spot layer
+    generateSpotPreview(c, m, y, k, alpha_channel, spot_fixed, config.getPreviwColors().get(previewColor,(255,255,0)))  # Generate a preview image of the spot layer
     # Write the TIFF file with the separated channels
     tifffile.imwrite(
         outputName,

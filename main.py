@@ -2,10 +2,13 @@ import customtkinter
 import tkinter.filedialog 
 import os
 import program
+import config
 import json
 import threading
 from CTkMessagebox import CTkMessagebox
 from PIL import Image
+
+config.setupProgram()
 
 targetFile = None
 def select_file():
@@ -58,23 +61,7 @@ def validate_int(text): # Make sure you can only enter integers in the margin in
 def showPreview():
     program.showPreview()  # Show the preview of the generated spot image
 
-def checkfolder():
-    if not os.path.exists("data"):
-        os.makedirs("data")
-    if not os.path.exists("data/settings.json"):
-        with open("data/settings.json", "w") as settings_file:
-            # Default settings upon first run
-            settings = {
-                "margin": 2,
-                "marginMode": 3,
-                "copywhite": False,
-                "fillgaps": False,
-                "previewColor": program.getPreviwColors().keys[0]  # Take first color from the preview colors as default
-            }
-            json.dump(settings, settings_file)
-
 def updateSettings(*args):
-    checkfolder()
     try:
         MarginValue = int(margin.get())
     except (ValueError, tkinter.TclError):
@@ -83,44 +70,36 @@ def updateSettings(*args):
     button3.configure(command=None)
     button3.configure(fg_color="black")
 
-    with open("data/settings.json", "w") as settings_file:
-        # Get all the values and save them to the settings file
-        settings = {
-            "margin": MarginValue,
-            "marginMode": marginmode.get(),
-            "copywhite": copywhite.get(),
-            "fillgaps": fillgaps.get(),
-            "previewColor": previewColor.get()
-        }
-        json.dump(settings, settings_file)
+    settings = {
+        "margin": MarginValue,
+        "marginMode": marginmode.get(),
+        "copywhite": copywhite.get(),
+        "fillgaps": fillgaps.get(),
+        "previewColor": previewColor.get()
+    }
+    config.updateSettings(settings)
 
 def loadSettings():
-    checkfolder()
-    try:
-        with open("data/settings.json", "r") as settings_file:
-            settings = json.load(settings_file)
-            margin.set(settings.get("margin", 2))
-            marginmode.set(str(settings.get("marginMode", 2)))
-            previewColor.set(str(settings.get("previewColor", "Cyan")))
+    settings = config.getSettingsDict()
+    backup = config.getStandardValues()
 
-            if settings.get("copywhite", True):
-                copywhite.select()
-            elif settings.get("copywhite", 1):
-                copywhite.select()
-            else:
-                copywhite.deselect()
+    margin.set(settings.get("margin", backup['margin']))
+    marginmode.set(str(settings.get("marginMode", backup['marginMode'])))
+    previewColor.set(str(settings.get("previewColor", backup['previewColor'])))
 
-            if settings.get("fillgaps", True):
-                fillgaps.select()
-            elif settings.get("fillgaps", 1):
-                fillgaps.select()
-            else:
-                fillgaps.deselect()
-    except FileNotFoundError:
-        return
+    if settings.get("copywhite", backup['copywhite']):
+        copywhite.select()
+    else:
+        copywhite.deselect()
+
+    if settings.get("fillgaps", backup['fillgaps']):
+        fillgaps.select()
+    else:
+        fillgaps.deselect()
+
 
 app = customtkinter.CTk()
-app.title("Tiff Fix")
+app.title("Speedyspot")
 app.geometry("400x340")
 vcmd = app.register(validate_int)
 
@@ -165,7 +144,7 @@ fillgaps.grid(row=6, column=1, padx=10, pady=0)
 
 button3 = customtkinter.CTkButton(app, text="Show preview", fg_color="Black")  # single color name
 button3.grid(row=7, column=0, padx=20, pady=30)
-customtkinter.CTkOptionMenu(app, values=list(program.getPreviwColors().keys()), variable=previewColor).grid(row=7, column=1, padx=10, pady=30)
+customtkinter.CTkOptionMenu(app, values=list(config.getPreviwColors().keys()), variable=previewColor).grid(row=7, column=1, padx=10, pady=30)
 
 customtkinter.set_default_color_theme("dark-blue")
 
