@@ -54,6 +54,32 @@ def getPreviwColors() -> dict:
     }
     return colors
 
+def convertValue(value, type):
+    if (type == "bool"):
+        if value == "True":
+            return True
+        return False
+    elif (type == "int"):
+        value = int(value)
+    return value
+
+def checkIfValidSetting(setting: str):
+    return getStandardValues().keys().__contains__(setting)
+
+def getSetting(setting: str): 
+    if not (checkIfValidSetting(setting)):
+        raise ValueError("Setting not found")
+    
+    with contextlib.closing(sqlite3.connect('data/program.db')) as conn:    
+        c = conn.cursor()
+        c.execute("SELECT value, type FROM settings WHERE setting = ?", (setting,))
+        try:
+            row = c.fetchone()
+            return convertValue(row[0], row[1])
+        except:
+            pass
+        return getStandardValues()[setting]
+
 def getSettingsDict() -> dict:
     result = dict()
     
@@ -62,12 +88,9 @@ def getSettingsDict() -> dict:
         c.execute("SELECT * FROM settings")
         res = c.fetchall()
         for row in res:
-            value = row[1]
-            if (row[2] == "bool"):
-                value = bool(value)
-            elif (row[2] == "int"):
-                value = int(value)
-            result[row[0]] = value
+            print(row[1], row[2])
+            print(convertValue(row[1], row[2]))
+            result[row[0]] = convertValue(row[1], row[2])
             # Else it stays as string
     return result
 

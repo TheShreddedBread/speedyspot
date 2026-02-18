@@ -7,19 +7,30 @@ import json
 import threading
 from CTkMessagebox import CTkMessagebox
 from PIL import Image
+import handleEPS
 
 config.setupProgram()
 
 targetFile = None
+programStarted = False
 def select_file():
-    file_path = tkinter.filedialog.askopenfilename(filetypes=[("TIFF files", "*.tif;*.tiff"), ("PNG files", "*.png")], title="Select a file")
+    acceptedfileTypes = []
+    canHandleEPS = handleEPS.ghostScriptInstalled()
+    if (canHandleEPS):
+        acceptedfileTypes.append(("Image files","*.tif;*.tiff;*.png;*.eps"))
+    acceptedfileTypes.append(("TIFF files", "*.tif;*.tiff"))
+    acceptedfileTypes.append(("PNG files", "*.png"))
+    if (canHandleEPS):
+        acceptedfileTypes.append(("EPS files", "*.eps"))
+        
+    file_path = tkinter.filedialog.askopenfilename(filetypes=acceptedfileTypes, title="Select a file")
     global targetFile
 
     if file_path:
         name, ext = os.path.splitext(os.path.basename(file_path))
-        if not ext.lower() in ['.tif', '.tiff', '.png']:
+        if not ext.lower() in ['.tif', '.tiff', '.png', '.eps']:
             # Show an error message if the file is not TIFF or PNG
-            CTkMessagebox(title="Invalid file type", message="Please select a valid TIFF or PNG file.", icon="cancel")
+            CTkMessagebox(title="Invalid file type", message="Please select a valid TIFF, PNG or EPS file.", icon="cancel")
             targetFile = None # Remove saved file path
             chosenFile.configure(text="No file selected") # Update display text
             return
@@ -62,6 +73,9 @@ def showPreview():
     program.showPreview()  # Show the preview of the generated spot image
 
 def updateSettings(*args):
+    global programStarted
+    if (not programStarted):
+        return
     try:
         MarginValue = int(margin.get())
     except (ValueError, tkinter.TclError):
@@ -69,12 +83,11 @@ def updateSettings(*args):
 
     button3.configure(command=None)
     button3.configure(fg_color="black")
-
     settings = {
         "margin": MarginValue,
         "marginMode": marginmode.get(),
-        "copywhite": copywhite.get(),
-        "fillgaps": fillgaps.get(),
+        "copywhite": bool(copywhite.get()),
+        "fillgaps": bool(fillgaps.get()),
         "previewColor": previewColor.get()
     }
     config.updateSettings(settings)
@@ -95,7 +108,7 @@ def loadSettings():
     if settings.get("fillgaps", backup['fillgaps']):
         fillgaps.select()
     else:
-        fillgaps.deselect()
+        fillgaps.deselect(0)
 
 
 app = customtkinter.CTk()
@@ -150,6 +163,9 @@ customtkinter.set_default_color_theme("dark-blue")
 
 loadSettings() # Load settings from the file if it exists
 program.cacheFunctions()  # Cache the functions for later use
+
+handleEPS.baseApp = app
+programStarted = True
 
 app.update_idletasks()
 app.mainloop()

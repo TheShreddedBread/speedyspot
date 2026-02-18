@@ -118,7 +118,6 @@ def generateSpotPreview(c: np.ndarray, m: np.ndarray, y: np.ndarray, k: np.ndarr
     # Create a preview image with the spot channel
     rgba_image = generateRGBAimage(c, m, y, k, alpha_channel, spot_channel, r, g, b, spotColor)  # Generate RGBA image
     # Create mask for the spot channel and update RGB channels
-
     image = Image.fromarray(rgba_image.astype('uint8'), 'RGBA')
     image.save("data/spot_preview.png")  # Save the preview image
 
@@ -244,4 +243,3 @@ def cacheFunctions(): # Dummy function to cache the functions in numba
     generateRGBAimage(emptyArr, emptyArr, emptyArr, emptyArr, emptyArr, emptyArr, emptyArr, emptyArr, emptyArr, (0, 255, 255))
     extractWhite(emptyArr,emptyArr,emptyArr,emptyArr,emptyArr,emptyArr)
     invertSpot(emptyArr)
-    
