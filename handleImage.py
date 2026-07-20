@@ -10,19 +10,19 @@ from handleEPS import HandleEPS
 usedEPS = False
 epsOutputName = None
 
-def get_scales() -> tuple:
+def getScales() -> tuple:
     # Constants for scaling, these can be adjusted based on the desired output range
-    rgb_scale = 255.0
-    cmyk_scale = 255.0
-    return rgb_scale, cmyk_scale
+    rgbScale = 255.0
+    cmykScale = 255.0
+    return rgbScale, cmykScale
 
-def rgb_to_cmyk_array(r: np.ndarray, g: np.ndarray, b: np.ndarray) -> tuple:
-    rgb_scale, cmyk_scale = get_scales()
+def rgbToCmykArray(r: np.ndarray, g: np.ndarray, b: np.ndarray) -> tuple:
+    rgbScale, cmykScale = getScales()
 
     # Normalize RGB
-    r = np.array(r).astype(np.float32) / rgb_scale
-    g = np.array(g).astype(np.float32) / rgb_scale
-    b = np.array(b).astype(np.float32) / rgb_scale
+    r = np.array(r).astype(np.float32) / rgbScale
+    g = np.array(g).astype(np.float32) / rgbScale
+    b = np.array(b).astype(np.float32) / rgbScale
 
     # CMY intialization
     c = 1 - r
@@ -43,28 +43,28 @@ def rgb_to_cmyk_array(r: np.ndarray, g: np.ndarray, b: np.ndarray) -> tuple:
     y[~mask] = 0
 
     return (
-        (c * cmyk_scale).astype(np.uint8),
-        (m * cmyk_scale).astype(np.uint8),
-        (y * cmyk_scale).astype(np.uint8),
-        (k * cmyk_scale).astype(np.uint8)
+        (c * cmykScale).astype(np.uint8),
+        (m * cmykScale).astype(np.uint8),
+        (y * cmykScale).astype(np.uint8),
+        (k * cmykScale).astype(np.uint8)
     )
 
-def cmyk_to_rgb_array(c: np.ndarray, m: np.ndarray, y: np.ndarray, k: np.ndarray) -> tuple:
+def cmykToRgbArray(c: np.ndarray, m: np.ndarray, y: np.ndarray, k: np.ndarray) -> tuple:
     # Convert CMYK (0-255) to RGB (0-255)
-    rgb_scale, cmyk_scale = get_scales()
-    c = np.array(c).astype(np.float32) / cmyk_scale
-    m = np.array(m).astype(np.float32) / cmyk_scale
-    y = np.array(y).astype(np.float32) / cmyk_scale
-    k = np.array(k).astype(np.float32) / cmyk_scale
+    rgbScale, cmykScale = getScales()
+    c = np.array(c).astype(np.float32) / cmykScale
+    m = np.array(m).astype(np.float32) / cmykScale
+    y = np.array(y).astype(np.float32) / cmykScale
+    k = np.array(k).astype(np.float32) / cmykScale
 
     r = (1.0 - np.minimum(1.0, c * (1.0 - k) + k))
     g = (1.0 - np.minimum(1.0, m * (1.0 - k) + k))
     b = (1.0 - np.minimum(1.0, y * (1.0 - k) + k))
 
     return (
-        (r * rgb_scale).astype(np.uint8),
-        (g * rgb_scale).astype(np.uint8),
-        (b * rgb_scale).astype(np.uint8)
+        (r * rgbScale).astype(np.uint8),
+        (g * rgbScale).astype(np.uint8),
+        (b * rgbScale).astype(np.uint8)
     )
 
 def getType(src: str) -> list:
@@ -73,7 +73,7 @@ def getType(src: str) -> list:
     
     # Determine the type of image based on its file extension and properties
     # Is it a tiff or png? And is it RGB or CMYK?
-    ext = src.split(".")[-1]
+    ext = src.split(".")[-1].lower()
     if ext == "tif" or ext == "tiff":
         with tifffile.TiffFile(src) as tif:
             photometric = tif.pages[0].photometric
@@ -90,7 +90,7 @@ def getType(src: str) -> list:
         mode = img.mode
         
         # Check if image has transparency in any form
-        has_transparency = (
+        hasTransparency = (
             mode in ("RGBA", "LA", "PA") or 
             (mode == "P" and "transparency" in img.info) or
             (mode in ("RGB", "L") and "transparency" in img.info)
@@ -99,7 +99,7 @@ def getType(src: str) -> list:
         img.close()
         
         # Determine the color space of the PNG image
-        imgInfo = ["Unknown", "png", has_transparency]  # Add transparency flag
+        imgInfo = ["Unknown", "png", hasTransparency]  # Add transparency flag
         if mode in ("RGBA", "RGB", "LA", "L", "P"):
             imgInfo[0] = "RGB"
         elif mode == "CMYK":
@@ -130,16 +130,16 @@ def splitImageToCmyk(src: str) -> tuple:
     epsOutputName = None
     # Create a CMYK image from an RGB or CMYK source image, using information from the function getType
     imgInfo = getType(src) # Get image type and color space (RGB or CMYK)
-    c,m,y,k, alpha_channel = 0,0,0,0,0 # Initialize variables
+    c, m, y, k, alphaChannel = 0,0,0,0,0 # Initialize variables
     if imgInfo[1]== "tiff":
         # Read the TIFF image using tifffile
         imgSrc = tifffile.imread(src)  # shape (H,W,4)
         if imgInfo[0] == "RGB":
-            c,m,y,k = rgb_to_cmyk_array(imgSrc[..., 0], imgSrc[..., 1], imgSrc[..., 2])
-            alpha_channel = imgSrc[..., 3].astype(np.uint8)
+            c,m,y,k = rgbToCmykArray(imgSrc[..., 0], imgSrc[..., 1], imgSrc[..., 2])
+            alphaChannel = imgSrc[..., 3].astype(np.uint8)
         elif imgInfo[0] == "CMYK":
             c, m, y, k = imgSrc[..., 0], imgSrc[..., 1], imgSrc[..., 2], imgSrc[..., 3]
-            alpha_channel = imgSrc[..., 4].astype(np.uint8)
+            alphaChannel = imgSrc[..., 4].astype(np.uint8)
         else:
             raise ValueError("Unknown image type")
         
@@ -151,31 +151,30 @@ def splitImageToCmyk(src: str) -> tuple:
         imgSrc = PIL.Image.open(src)
         
         # Check if has transparency flag (3rd element in imgInfo)
-        has_transparency = len(imgInfo) > 2 and imgInfo[2]
+        hasTransparency = len(imgInfo) > 2 and imgInfo[2]
         
         # Convert to RGBA if it has transparency to ensure alpha channel exists
-        if has_transparency:
+        if hasTransparency:
             imgSrc = imgSrc.convert("RGBA")
         
         # Check if the image is RGB or CMYK and convert if needed
         if imgInfo[0] == "RGB":
-            c, m, y, k = rgb_to_cmyk_array(imgSrc.getchannel("R"), imgSrc.getchannel("G"), imgSrc.getchannel("B"))
-            # Get alpha channel—guaranteed to exist if has_transparency is True
-            if has_transparency:
-                alpha_channel = np.array(imgSrc.getchannel("A"))
+            c, m, y, k = rgbToCmykArray(imgSrc.getchannel("R"), imgSrc.getchannel("G"), imgSrc.getchannel("B"))
+            # Get alpha channel—guaranteed to exist if has transparency is True
+            if hasTransparency:
+                alphaChannel = np.array(imgSrc.getchannel("A"))
             # else:
-                # Create opaque (255) alpha channel
-                # alpha_channel = np.full(imgSrc.size[::-1], 0, dtype=np.uint8)
+                # alphaChannel = np.full(imgSrc.size[::-1], 0, dtype=np.uint8)
         
         elif imgInfo[0] == "CMYK":
             c, m, y, k = imgSrc.split()
             # Get alpha channel if it exists
-            if has_transparency:
-                alpha_channel = np.array(imgSrc.getchannel("A"))
+            if hasTransparency:
+                alphaChannel = np.array(imgSrc.getchannel("A"))
             else:
                 # Create opaque (255) alpha channel
-                alpha_channel = np.full(imgSrc.size[::-1], 255, dtype=np.uint8)
+                alphaChannel = np.full(imgSrc.size[::-1], 255, dtype=np.uint8)
         else:
             raise ValueError("Unknown image type")
-    return c, m, y, k, alpha_channel
+    return c, m, y, k, alphaChannel
     
