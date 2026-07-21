@@ -7,12 +7,11 @@ import cv2
 import config
 import handleImage
 import math
-from numba import jit
+from numba import jit, njit
 from abc import ABC, abstractmethod
 
 previewImage = None  # Global variable to hold the preview image
 
-@jit(nopython=False, forceobj=True)
 def contractAlphaSmooth(alphaChannel: np.ndarray, pixels: int, blurSigma: float = 1.0, mode: int = 1) -> np.ndarray:
     # Create a mask from the alpha channel and apply Gaussian blur
     if pixels <= 0:
@@ -44,7 +43,8 @@ def contractAlphaSmooth(alphaChannel: np.ndarray, pixels: int, blurSigma: float 
         blurred = cv2.bilateralFilter(contracted, d=2, sigmaColor=75, sigmaSpace=75)
 
         return blurred
-    elif mode == 2:
+    
+    else:
         # Create a binary mask from the alpha channel
         binaryMask = (alphaChannel > 0).astype(np.uint8)
 
@@ -71,32 +71,7 @@ def contractAlphaSmooth(alphaChannel: np.ndarray, pixels: int, blurSigma: float 
 
         # Clip the values to [0, 255] and convert to uint8
         contracted = np.clip(contracted, 0, 255).astype(np.uint8)
-        alphaChannel = contracted
-
-    elif mode == 3: # Similar to mode 2, but with no blur
-
-        # Normalize the alpha channel to [0, 1]
-        alphaNorm = alphaChannel.astype(np.float32) / 255.0
-
-        # Create a binary mask from the normalized alpha channel
-        binaryMask = (alphaNorm > 0.01).astype(np.uint8)
-        
-        padded = np.pad(binaryMask, ((1, 1), (1, 1)), mode='constant', constant_values=0)
-
-        # Calculate the distance transform
-        dist = cv2.distanceTransform(padded, distanceType=cv2.DIST_L2, maskSize=5)
-        
-        dist = dist[1:-1, 1:-1]
-
-        # Create a contracted mask based on the distance
-        contractedMask = (dist > pixels).astype(np.float32)
-
-        # Multiply the alpha channel by the contracted mask
-        contractedAlpha = alphaNorm * contractedMask
-
-        # Scale back to [0, 255] and convert to uint8
-        alphaChannel = np.clip(contractedAlpha * 255, 0, 255).astype(np.uint8)
-        
+        alphaChannel = contracted  
     return alphaChannel
 
 def getResolutionTag(dpi: int=300) -> tuple:
@@ -104,7 +79,7 @@ def getResolutionTag(dpi: int=300) -> tuple:
     resolutionUnit = 'inch'
     return resolution, resolutionUnit
 
-@jit
+@njit
 def extractWhite(c: np.ndarray, m: np.ndarray, y: np.ndarray, k: np.ndarray, a: np.ndarray, spotLayer: np.ndarray) -> tuple:
     for i in range(a.shape[0]):
         for j in range(a.shape[1]):
@@ -130,7 +105,6 @@ def fixSpotSmart(c: np.ndarray, m: np.ndarray, y: np.ndarray, k: np.ndarray, a: 
 
     return spotLayer
 
-@jit(nopython=False, forceobj=True)
 def generateRGBAimage(alphaChannel: np.ndarray, spotChannel: np.ndarray, r: np.ndarray, g: np.ndarray, b: np.ndarray, spotColor: tuple=(0, 255, 255)) -> np.ndarray:
     mask = (spotChannel == 0)
     r[mask] = spotColor[0] # Red
@@ -154,7 +128,6 @@ def invertChannel(spotChannel: np.ndarray) -> np.ndarray:
     invertedSpot = 255 - spotChannel
     return invertedSpot.astype(np.uint8)
 
-
 def showPreview() -> None:
     global previewImage
     try:
@@ -174,11 +147,9 @@ def getOutputName(inputName) -> str:
     return newName
 
 def cacheFunctions() -> None: # cache functions with numba
-    emptyArr = np.empty((1, 1), dtype=np.uint8)
-    contractAlphaSmooth(emptyArr, 0, 0, 3)
-    generateRGBAimage(emptyArr, emptyArr, emptyArr, emptyArr, emptyArr, (0, 255, 255))
-    extractWhite(emptyArr,emptyArr,emptyArr,emptyArr,emptyArr,emptyArr)
-    invertChannel(emptyArr)
+    dummyArr = np.full((200, 200), 100, dtype=np.uint8)
+    extractWhite(dummyArr,dummyArr,dummyArr,dummyArr,dummyArr,dummyArr)
+    invertChannel(dummyArr)
     
 
 def getSpotLayerName() -> str:
@@ -193,7 +164,6 @@ def getPreviewColor():
     return allPrevColors.get(prevColorName, allPrevColors.get(config.getDefaultPreviewColorKey()))
 
 def generateSpotImage(inputName: str, outputName: str) -> None:
-    # margin=marg, marginMode=int(self.marginmode.get()), smartSpot=[self.copywhite.get(), self.fillgaps.get()], previewColor=self.previewColor.get()
     colorMode = config.getSetting("colorMode")
     alphaAsSpot = config.getSetting("alphaspot")
     generator = CMYKTiffGenerator(alphaAsSpot) # Default to cmyk
@@ -264,7 +234,6 @@ class TiffGenerator(ABC):
         spotSized = contractAlphaSmooth(spotChannel, pixels=margin, mode=marginMode) # Contract the alpha channel
         
         if True in smartSpot:
-            print("trig")
             spotSized = fixSpotSmart(c, m, y, k, alphaChannel, spotSized, margin, smartSpot) # Function to fix the spot channel "smartly"
      
 

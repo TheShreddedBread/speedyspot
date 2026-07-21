@@ -7,6 +7,9 @@ class PopupFrame(ctk.CTkToplevel):
         self.title(title)
         self.geometry(size)
         self.resizable(False, False)
+        
+        self.after(250, lambda: self.iconbitmap('icon.ico')) # Due to bug in package: https://stackoverflow.com/questions/75825190/how-to-put-iconbitmap-on-a-customtkinter-toplevel
+        
         self.parent = parent
         self.update_idletasks()
         if (parent != None):

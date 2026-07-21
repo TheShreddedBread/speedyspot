@@ -57,7 +57,7 @@ class Home(customtkinter.CTkFrame):
         self.previewBtn.configure(command=self.showPreview)
         self.previewBtn.configure(fg_color="green")
         self.after(0, lambda: self.info.configure(text="Done!")) # Show "Done!" message
-        self.after(5000, lambda: self.info.grid_forget())  # Hide after 5 seconds
+        self.after(5000, lambda: self.info.grid_remove())  # Hide after 5 seconds
         
     # Start the conversion process in a separate thread
     def startProcess(self):
