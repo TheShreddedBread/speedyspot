@@ -1,4 +1,5 @@
 import customtkinter as ctk
+from setCtkIcon import setIcon
 
 class PopupFrame(ctk.CTkToplevel):
     def __init__(self, parent, title, size):
@@ -8,7 +9,7 @@ class PopupFrame(ctk.CTkToplevel):
         self.geometry(size)
         self.resizable(False, False)
         
-        self.after(250, lambda: self.iconbitmap('icon.ico')) # Due to bug in package: https://stackoverflow.com/questions/75825190/how-to-put-iconbitmap-on-a-customtkinter-toplevel
+        self.after(250, lambda: setIcon(self)) # Due to bug in package: https://stackoverflow.com/questions/75825190/how-to-put-iconbitmap-on-a-customtkinter-toplevel
         
         self.parent = parent
         self.update_idletasks()
