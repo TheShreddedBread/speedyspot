@@ -27,7 +27,6 @@ class Settings(ctk.CTkFrame):
         
         ctk.CTkLabel(self, text="Spot Offset").grid(row=2, column=0)
         
-        # Flytta frame till egen klass?
         self.offsetRow = ctk.CTkFrame(self, width=300, height=30, fg_color="transparent")
         
         ctk.CTkLabel(self.offsetRow, text="X: ", width=2).grid(row=0, column=0, padx=0)
@@ -45,9 +44,11 @@ class Settings(ctk.CTkFrame):
         self.offsetRow.grid(row=3, column=0, columnspan=2)
         
         ctk.CTkLabel(self, text="Margin Mode").grid(row=4, column=0, padx=10, pady=(10, 0))
-        self.marginmode = ctk.StringVar()
+        marginModeTranslation = {"Erode": 1, "Distans Transform": 2}
+        self.marginmode = settingsHandler.TranslatorVar(marginModeTranslation)
+        ctk.CTkOptionMenu(self, values=["Erode", "Distans Transform"], variable=self.marginmode).grid(row=5, column=0, padx=10, pady=0)
         settingsHandler.addSetting("marginMode", self.marginmode)
-        ctk.CTkOptionMenu(self, values=["1", "2", "3"], variable=self.marginmode).grid(row=5, column=0, padx=10, pady=0)
+
         
         self.alphaspot = ctk.CTkSwitch(self, text="Use alpha as spot", command=settingsHandler.updateConfigSettings)
         self.alphaspot.grid(row=5, column=1, padx=10, pady=0)

@@ -40,10 +40,8 @@ def settingExist(name: str) -> bool:
         return False
 
 def updateSettings(updateDict: dict) -> None:
-    # Create connection
     with contextlib.closing(sqlite3.connect('data/program.db')) as conn:    
         c = conn.cursor()
-
         for key in updateDict.keys():
             if len(key) == 0: continue
             if type(key) != str: raise ValueError("Key must be a string")
@@ -54,7 +52,6 @@ def updateSettings(updateDict: dict) -> None:
                 if key not in getSettingsDict().keys():
                     continue # Trying to load some old setting or something
                 c.execute("INSERT INTO settings (setting, value, type) VALUES (?, ?, ?)", (key, str(updateDict[key]), str(type(getStandardValues()[key]).__name__)))
-        
         conn.commit()
 
 def getPreviwColors() -> dict:
@@ -110,7 +107,6 @@ def getSettingsDict() -> dict:
         res = c.fetchall()
         for row in res:
             result[row[0]] = convertValue(row[1], row[2])
-            # Else it stays as string
     return result
 
 def getDefaultPreviewColorKey() ->  str:
@@ -124,7 +120,7 @@ def getStandardValues() -> dict:
     return {
         "colorMode": "CMYK",
         "margin": 2,
-        "marginMode": 3,
+        "marginMode": 2,
         "alphaspot": False,
         "copywhite": False,
         "fillgaps": False,

@@ -24,8 +24,9 @@ def initialize():
 
     loader.close()
     app.deiconify()
-
     
+    settingsHandler.allowUpdate = True
+
 targetFile = None
 programStarted = False
 
@@ -40,9 +41,6 @@ PageHandler(navbar.getContentArea())
 
 threading.Thread(target=initialize, daemon=True).start()
 
-
 handleEPS.baseApp = app
-settingsHandler.allowUpdate = True
-
 
 app.mainloop()

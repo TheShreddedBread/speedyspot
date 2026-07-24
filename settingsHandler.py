@@ -1,5 +1,31 @@
 import config
 import customtkinter
+
+class Translator():
+    def __init__(self, translationDict: dict):
+        self.translation = translationDict
+        
+    def forward(self, text):
+        return self.translation.get(text, "")
+
+    def reverse(self, value):
+        for text, val in self.translation.items():
+            if val == value:
+                return text
+        raise ValueError(f"Unknown value: {value}")
+    
+class TranslatorVar(customtkinter.StringVar):
+    def __init__(self, translationDict, **args):
+        super().__init__(**args)
+        self.translator = Translator(translationDict)
+        self.firstGet = True
+
+    def load(self):
+        return self.translator.forward(super().get())
+      
+    def save(self, input):
+        super().set(self.translator.reverse(input))
+
 allSettings = {}
 functionsToCallOnUpdate = list()
 allowUpdate = False
@@ -8,28 +34,36 @@ def getAllSettings() -> dict:
     settingsDict = {}
     for setting in allSettings.keys():
         try:
-            value = allSettings[setting].get()
+            if isinstance(allSettings[setting], TranslatorVar):
+                value = allSettings[setting].load()
+            else:
+                value = allSettings[setting].get()    
         except:
             continue
         try:
             settingsDict[setting] = config.convertValue(value, config.getStandardSettingType(setting))
         except:
-            continue
+            raise TypeError(f"Ignoring {setting} due to error, using default")
     return settingsDict
 
 def loadSettings():
     savedValues = config.getSettingsDict()
     defaultValue = config.getStandardValues()
     for setting in allSettings.keys():
-        if isinstance(allSettings[setting], customtkinter.CTkSwitch):
-            if savedValues.get(setting, defaultValue.get(setting)):
-                allSettings[setting].select()
+        backup = defaultValue.get(setting)
+        data = savedValues.get(setting, backup)
+        element = allSettings[setting]
+        
+        if isinstance(element, customtkinter.CTkSwitch):
+            if data:
+                element.select()
             else:
-                allSettings[setting].deselect()
+                element.deselect()
+        elif isinstance(element, TranslatorVar):
+            element.save(data)
         else:
-            allSettings[setting].set(savedValues.get(setting, defaultValue.get(setting)))
+            element.set(data)
             
-
 def addSetting(settingName: str, obj: object) -> None:
     if isinstance(obj, customtkinter.StringVar):
         obj.trace_add("write", updateConfigSettings)
