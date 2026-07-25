@@ -2,7 +2,6 @@ import os
 import time
 import PIL
 import numpy as np
-import cv2
 import tifffile
 from handleEPS import HandleEPS
 
@@ -152,19 +151,19 @@ def splitImageToCmyk(src: str) -> tuple:
         
         # Check if has transparency flag (3rd element in imgInfo)
         hasTransparency = len(imgInfo) > 2 and imgInfo[2]
-        
         # Convert to RGBA if it has transparency to ensure alpha channel exists
         if hasTransparency:
             imgSrc = imgSrc.convert("RGBA")
-        
+        else:
+            imgSrc = imgSrc.convert("RGB")
         # Check if the image is RGB or CMYK and convert if needed
         if imgInfo[0] == "RGB":
             c, m, y, k = rgbToCmykArray(imgSrc.getchannel("R"), imgSrc.getchannel("G"), imgSrc.getchannel("B"))
             # Get alpha channel—guaranteed to exist if has transparency is True
             if hasTransparency:
                 alphaChannel = np.array(imgSrc.getchannel("A"))
-            # else:
-                # alphaChannel = np.full(imgSrc.size[::-1], 0, dtype=np.uint8)
+            else:
+                alphaChannel = np.full(imgSrc.size[::-1], 255, dtype=np.uint8)
         
         elif imgInfo[0] == "CMYK":
             c, m, y, k = imgSrc.split()

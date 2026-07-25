@@ -25,7 +25,7 @@ def contractAlphaSmooth(alphaChannel: np.ndarray, pixels: int, blurSigma: float 
         mask = (alphaNorm > 0.01).astype(np.uint8)
 
         # Pad with background so borders shrink correctly
-        mask = cv2.copyMakeBorder(mask, pixels, pixels, pixels, pixels, cv2.BORDER_CONSTANT, value=0)
+        mask = np.pad(mask, ((1, 1), (1, 1)), mode='constant', constant_values=0)
 
         # Elliptical kernel gives smoother contraction
         kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(2 * pixels + 1, 2 * pixels + 1))
@@ -44,10 +44,11 @@ def contractAlphaSmooth(alphaChannel: np.ndarray, pixels: int, blurSigma: float 
 
         return blurred
     
-    else:
+    else:  
         # Create a binary mask from the alpha channel
         binaryMask = (alphaChannel > 0).astype(np.uint8)
 
+        # Pad with background so borders shrink correctly
         padded = np.pad(binaryMask, ((1, 1), (1, 1)), mode='constant', constant_values=0)
         
         # Apply Gaussian blur to the binary mask
@@ -56,6 +57,7 @@ def contractAlphaSmooth(alphaChannel: np.ndarray, pixels: int, blurSigma: float 
         # Calculate the distance transform
         dist = cv2.distanceTransform(binary, cv2.DIST_L2, 3)
         
+        # Remove padding
         dist = dist[1:-1, 1:-1]
 
         # Create a mask based on the distance
@@ -71,7 +73,8 @@ def contractAlphaSmooth(alphaChannel: np.ndarray, pixels: int, blurSigma: float 
 
         # Clip the values to [0, 255] and convert to uint8
         contracted = np.clip(contracted, 0, 255).astype(np.uint8)
-        alphaChannel = contracted  
+        alphaChannel = contracted
+         
     return alphaChannel
 
 def getResolutionTag(dpi: int=300) -> tuple:
@@ -123,9 +126,9 @@ def generateSpotPreview(c: np.ndarray, m: np.ndarray, y: np.ndarray, k: np.ndarr
     image.save("data/spot_preview.png")  # Save the preview image
 
 @jit
-def invertChannel(spotChannel: np.ndarray) -> np.ndarray:
+def invertChannel(channel: np.ndarray) -> np.ndarray:
     # Invert the spot channel
-    invertedSpot = 255 - spotChannel
+    invertedSpot = 255 - channel
     return invertedSpot.astype(np.uint8)
 
 def showPreview() -> None:
