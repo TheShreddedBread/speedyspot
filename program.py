@@ -50,19 +50,17 @@ def contractAlphaSmooth(alphaChannel: np.ndarray, pixels: int, blurSigma: float 
 
         # Pad with background so borders shrink correctly
         padded = np.pad(binaryMask, ((1, 1), (1, 1)), mode='constant', constant_values=0)
-        
-        # Apply Gaussian blur to the binary mask
-        binary = cv2.GaussianBlur(padded, (0, 0), sigmaX=blurSigma)
 
         # Calculate the distance transform
-        dist = cv2.distanceTransform(binary, cv2.DIST_L2, 3)
+        dist = cv2.distanceTransform(padded, cv2.DIST_L2, 3)
         
-        # Remove padding
-        dist = dist[1:-1, 1:-1]
-
         # Create a mask based on the distance
         mask = (dist > pixels).astype(np.uint8)
+        
+        # Remove padding
+        mask = mask[1:-1, 1:-1]
 
+        
         # Create a contracted alpha channel based on the mask
         contracted = alphaChannel.copy()
         contracted[mask == 0] = 0
@@ -73,7 +71,7 @@ def contractAlphaSmooth(alphaChannel: np.ndarray, pixels: int, blurSigma: float 
 
         # Clip the values to [0, 255] and convert to uint8
         contracted = np.clip(contracted, 0, 255).astype(np.uint8)
-        alphaChannel = contracted
+        alphaChannel = contracted.astype(np.uint8)
          
     return alphaChannel
 
