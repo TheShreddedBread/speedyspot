@@ -72,6 +72,8 @@ def convertValue(value, type) -> bool|int|str:
             return True
         return False
     elif (type == "int"):
+        if value == '':
+            return 0
         value = int(value)
     return value
 
