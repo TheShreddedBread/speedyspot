@@ -8,3 +8,4 @@ psdtags==2025.5.10
 tifffile==2025.5.10
 pyinstaller==6.21.0
 pyinstaller-hooks-contrib==2026.6
+imagecodecs>=2026.6.26
