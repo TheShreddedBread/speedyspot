@@ -1,5 +1,3 @@
-# Command to compile: pyinstaller --name "Speedyspot" --onefile --icon "icon.ico" --noconsole --add-data=icon.ico:. main.py
-
 import customtkinter
 import program
 import config

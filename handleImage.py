@@ -24,9 +24,9 @@ def rgbToCmykArray(r: np.ndarray, g: np.ndarray, b: np.ndarray) -> tuple:
     b = np.array(b).astype(np.float32) / rgbScale
 
     # CMY intialization
-    c = 1 - r
-    m = 1 - g
-    y = 1 - b
+    c = 1.0 - r
+    m = 1.0 - g
+    y = 1.0 - b
 
     k = np.minimum.reduce([c, m, y])
     # Avoid division by zero
